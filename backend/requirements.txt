@@ -5,3 +5,4 @@ psycopg[binary]
 python-dotenv
 dj-database-url
 psycopg
+djangorestframework-simplejwt
