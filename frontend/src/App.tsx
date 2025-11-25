@@ -1,21 +1,53 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import proscientiaLogo from "./assets/logo-transparent-white.png"
 import './App.css'
+import {  Routes, Route, Navigate, Outlet} from "react-router-dom";
+import { setApiErrorHandler, getAccessToken } from "./utils/axiosInstance";
+import GlobalErrorDialog from "./components/GlobalErrorDialog";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+
+function ProtectedRoute() {
+  const isAuthed =
+    !!getAccessToken() || !!localStorage.getItem("accessToken");
+
+  if (!isAuthed) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setApiErrorHandler((message: string) => {
+      setGlobalError(message);
+    });
+  }, []);
 
   return (
     <>
-      <div>
-        <img src={proscientiaLogo} className="logo" alt="Vite logo" />
-        <div className="p-6 rounded-2xl shadow-xl bg-white">
-          <h1 className="text-2xl font-bold text-zinc-800">Frontend działa 🚀</h1>
-          <p className="text-gray-600">Vite + React + TS + TailwindCSS</p>
-        </div>
-      </div>
+      <Routes>
+        {/* Publiczna trasa: login */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Chronione trasy */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Dashboard />} />
+        </Route>
+
+        {/* fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      <GlobalErrorDialog
+        message={globalError}
+        onClose={() => setGlobalError(null)}
+      />
     </>
-  )
+  );
 }
 
-export default App
+export default App;
