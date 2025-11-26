@@ -89,3 +89,5 @@ Ai summaries: Widok listy wygenerowanych streszczeń z możliwością podglądu 
 
 ### Krok 3: Testowanie działania
 Testy przeprowadzono pomyślnie przy użyciu Django Shell oraz bezpośrednich zapytań curl, potwierdzając, że system poprawnie odczytuje pliki z wolumenu, komunikuje się z OpenAI i zapisuje wyniki w bazie PostgreSQL.
+
+![Streszczenie testowe agenta](Pierwsze_streszczenie.png)
