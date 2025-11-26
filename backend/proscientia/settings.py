@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "users",
     "erp_mes",
     "documents",
+    "ai_agents",
 ]
 
 MIDDLEWARE = [
@@ -192,3 +193,7 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/15"),
     },
 }
+
+# Konfiguracja OpenAI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL_NAME = os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
