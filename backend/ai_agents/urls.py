@@ -4,6 +4,8 @@ from .views import (
     ErpMesQuickReportView,
     AiArtifactListView,
     AiArtifactDetailView,
+    TriggerIndexingView,
+    AskDocumentView
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -26,6 +28,17 @@ urlpatterns = [
         "artifacts/<int:pk>/",
         AiArtifactDetailView.as_view(),
         name="ai-artifact-detail",
+    ),
+    path(
+        "index/<int:doc_id>/", 
+        TriggerIndexingView.as_view(), 
+        name="agent-index"),
+
+    # Endpoint do zadawania pytań ---
+    path(
+        "ask/<int:doc_id>/", 
+        AskDocumentView.as_view(), 
+        name="agent-ask"
     ),
 ]
 

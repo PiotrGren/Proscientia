@@ -4,17 +4,18 @@ import json
 from openai import OpenAI
 from django.conf import settings
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from documents.models import Document 
 from .models import AiArtifact
 
 
 def extract_text(file_path):
-    """Wyciąga tekst z PDF. Ograniczamy do 5 stron dla szybkości MVP."""
+    """Wyciąga tekst z PDF. Czyta CAŁY plik (usunięto limit 5 stron)."""
     text = ""
     try:
         reader = pypdf.PdfReader(file_path)
-        for i, page in enumerate(reader.pages):
-            if i >= 5: break
+        for page in reader.pages:
+            # Usunięto if i >= 5: break
             text += page.extract_text() + "\n"
     except Exception as e:
         print(f"Błąd PDF: {e}")
@@ -50,11 +51,15 @@ def _extract_text_pdf(file_path: str) -> str:
     text = ""
     try:
         reader = pypdf.PdfReader(file_path)
+        total_pages = len(reader.pages)
+        print(f"--- [DEBUG] Rozpoczynam czytanie PDF. Liczba stron: {total_pages} ---") # <--- SZPIEG 1
+        
         for i, page in enumerate(reader.pages):
-            if i >= 5:  # bezpiecznik – max 5 stron jak w MVP
-                break
+            # Upewnij się, że NIE MA TU IF BREAK
             page_text = page.extract_text() or ""
             text += page_text + "\n"
+            print(f"--- [DEBUG] Przetworzono stronę {i+1}/{total_pages} (długość: {len(page_text)}) ---") # <--- SZPIEG 2
+            
     except Exception as e:
         print(f"[AiAgents] Błąd PDF: {e}")
     return text
@@ -310,3 +315,32 @@ def build_summary_filename(document, user) -> str:
     """
     base = f"summary_doc{document.id}_user{user.id}"
     return f"{base}.txt"
+
+# RAG / EMBEDDINGS UTILS (DODANE)
+
+def create_smart_chunks(text, chunk_size=1000, chunk_overlap=200):
+    """
+    Używa LangChain do mądrego dzielenia tekstu (nie ucina zdań w połowie).
+    Zastępuje prosty chunk_text Piotra w zastosowaniach RAG.
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""]
+    )
+    return splitter.split_text(text)
+
+def get_embedding(text):
+    """Zamienia tekst na wektor liczbowy (1536 liczb) używając OpenAI."""
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    text = text.replace("\n", " ")
+    
+    try:
+        response = client.embeddings.create(
+            input=[text],
+            model="text-embedding-3-small"
+        )
+        return response.data[0].embedding
+    except Exception as e:
+        print(f"Błąd Embedding OpenAI: {e}")
+        return []

@@ -8,6 +8,7 @@ import {
   FiPlay,
   FiAlertCircle,
   FiRefreshCw,
+  FiMessageSquare,
 } from "react-icons/fi";
 import {
   FaFilePdf,
@@ -17,6 +18,7 @@ import {
 } from "react-icons/fa";
 import MainLayout from "../components/MainLayout";
 import axiosInstance from "../utils/axiosInstance";
+import DocumentChatModal from "../components/DocumentChatModal";
 
 type DocumentItem = {
   id: number;
@@ -125,6 +127,8 @@ const AISummary: React.FC = () => {
       setSummariesLoading(false);
     }
   }, []);
+
+  const [chatDoc, setChatDoc] = React.useState<{ id: number; title: string } | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -426,28 +430,40 @@ const AISummary: React.FC = () => {
                 </span>
                 </div>
             </div>
-            <div className="mt-1 flex w-full items-center justify-between text-[0.7rem] text-slate-400">
+            <div className="mt-3 flex w-full items-center justify-between gap-2 text-[0.7rem]"> 
                 {isTriggerMode ? (
                 <>
-                    <span className="flex items-center gap-1">
-                    <FiFileText className="inline-block" />
-                    Streszczaj
-                    </span>
-                    <span className="flex items-center gap-1 text-orange-400 group-hover:text-orange-300">
-                    {isBusy ? "Uruchamianie..." : "Start"}
-                    <FiPlay className="inline-block" />
-                    </span>
+                    {/* PRZYCISK STRESZCZANIA */}
+                    <button
+                        onClick={(e) => {
+                             e.stopPropagation(); // Żeby nie klikało w rodzica jeśli coś tam jest
+                             handleTriggerSummary(doc.id);
+                        }}
+                        disabled={isBusy}
+                        className="flex-1 flex items-center justify-center gap-1 rounded bg-zinc-800 py-1.5 text-slate-300 hover:bg-zinc-700 hover:text-white transition border border-zinc-700"
+                    >
+                        {isBusy ? <FiRefreshCw className="animate-spin" /> : <FiFileText />}
+                        {isBusy ? "Praca..." : "Streszczaj"}
+                    </button>
+
+                    {/* NOWY PRZYCISK CZATU */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setChatDoc({ id: doc.id, title: doc.title || doc.mock_filename || "Dokument" });
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1 rounded bg-orange-500/10 py-1.5 text-orange-400 hover:bg-orange-500/20 hover:text-orange-300 transition border border-orange-500/30"
+                    >
+                        <FiMessageSquare />
+                        Zapytaj
+                    </button>
                 </>
                 ) : (
-                <>
-                    <span className="flex items-center gap-1">
-                    <FiDownload className="inline-block" />
-                    Pobierz
-                    </span>
-                    <span className="text-slate-500">
-                    {ext ? ext.toUpperCase() : ""}
-                    </span>
-                </>
+                // TRYB POBIERANIA (bez zmian)
+                <div className="flex items-center gap-2 text-slate-500 w-full">
+                     <FiDownload />
+                     <span>Pobierz ({ext.toUpperCase()})</span>
+                </div>
                 )}
             </div>
             </button>
@@ -873,6 +889,14 @@ const AISummary: React.FC = () => {
         {activeTab === "summaries" && renderSummariesTab()}
         {activeTab === "manage" && renderManageTab()}
       </div>
+      {/* RENDEROWANIE MODALA JEŚLI JEST AKTYWNY */}
+      {chatDoc && (
+        <DocumentChatModal
+            docId={chatDoc.id}
+            docTitle={chatDoc.title}
+            onClose={() => setChatDoc(null)}
+        />
+      )}
     </MainLayout>
   );
 };
