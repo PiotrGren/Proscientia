@@ -1,140 +1,61 @@
-<img src="./frontend/src/assets/logo-transparent-white.png" alt="Logo" style="width:30%;" />
+<img src="./frontend/src/assets/logo-transparent-white.png" alt="Proscientia" width="30%" />
 
-## 👥 Autorzy
-**Greń Piotr**
+# Proscientia: AI Knowledge Assistant for Manufacturing (ERP/MES + RAG)
 
-**Zygmunt Adam**
+Proscientia is a containerised web platform for production teams. It **ingests documents and ERP/MES data**, then lets users work with them through **LLM agents**: document summaries, reports on the latest ERP/MES snapshots, and a **RAG chat** that answers questions about a document and cites its sources.
 
-## 📚 Spis treści
-1. [Architektura](#architektura)
-2. [Setup – uruchomienie projektu](#setup--uruchomienie-projektu)
+University team project (Digitalisation of Production Systems, Rzeszów University of Technology, 2025/26).
 
----
+## Features
 
-## 1. Architektura
+- **ERP/MES integration.** A FastAPI mock service simulates ERP and MES systems with versioned daily snapshots and documents (PDF/DOCX/XLSX/JSON). Celery tasks sync snapshots and fetch files into PostgreSQL.
+- **Document pipeline.** Files are downloaded, parsed and stored. Indexing splits text into overlapping chunks (1,000 characters, 200 overlap) and embeds them with `text-embedding-3-small` into **pgvector** (1,536 dimensions).
+- **AI agents** run as asynchronous Celery tasks and push progress to the UI over **WebSockets** (Django Channels):
+  - *Summary agent:* summaries of technical documents (`OPENAI_MODEL_NAME`, default GPT-4o-mini);
+  - *ERP/MES report agent:* a report on the latest production snapshot;
+  - *Knowledge (QA) agent:* RAG. It embeds the question, retrieves the 5 nearest chunks (L2 distance), and answers only from that context, returning the sources.
+- **Auth.** JWT authentication (SimpleJWT) with a custom user model.
+- **Frontend.** React 19 + TypeScript + Vite + Tailwind: dashboard, AI summaries view, document chat modal.
 
-Struktura katalogu głównego projektu:
+## Architecture
 
 ```
-proscientia/
-├─ backend/          # Django REST Framework (API)
-├─ frontend/         # React + Vite + TypeScript + TailwindCSS (UI)
-├─ mock/             # FastAPI – symulacja systemów ERP/MES
-├─ docker/
-│  ├─ backend/       # Dockerfile + entrypoint dla backendu
-│  ├─ frontend/      # Dockerfile dla frontendu
-│  ├─ mock/          # Dockerfile + entrypoint dla mock API
-│  ├─ celery/        # Dockerfile + entrypoint dla Celery/Beat
-│  ├─ postgres/      # Dockerfile dla bazy danych PostgreSQL
-│  ├─ compose.yaml   # Główny plik uruchamiający stack
-│  └─ .env           # Zmiennie środowiskowe (konfiguracja projektu)
-├─ data/
-│  ├─ postgres/      # Wolumen bazy danych
-│  ├─ pgadmin/       # Dane narzędzia pgAdmin
-│  └─ media/         # Pliki użytkownika i cache dokumentów
-└─ README.md
+React (Vite) ──REST/JWT──► Django REST API ──► PostgreSQL + pgvector
+      ▲                         │
+      └──── WebSockets ◄── Django Channels
+                                │ Celery tasks (Redis broker, Celery Beat schedules)
+                                ├─► mock ERP/MES service (FastAPI): snapshots and documents
+                                └─► OpenAI API: chat completions and embeddings
 ```
 
-### Opis najważniejszych katalogów
-1. **backend/** – aplikacja Django REST Framework. Obsługuje API, logikę serwera, dostęp do bazy danych oraz integrację z Celery.
-2. **frontend/** – aplikacja React + Vite z TailwindCSS. Warstwa wizualna i interfejs użytkownika.
-3. **mock/** – mikroserwis FastAPI udający zewnętrzne systemy ERP/MES. Posiada endpointy `/erp`, `/mes`, `/files` oraz `/health`.
-4. **docker/** – pliki Dockerfile, skrypty startowe (`entrypoint.sh`) i główny `compose.yaml`, który spina wszystkie serwisy.
-5. **data/** – lokalne wolumeny (persistencja danych Postgresa, pgAdmina i mediów).
-6. **README.md** – bieżący plik dokumentacji.
+Docker Compose services: `frontend`, `backend`, `celery`, `beat`, `redis`, `db` (pgvector/pg16), `mock-erp-mes`, `pgadmin`.
 
----
+## Getting started
 
-## 2. Setup – uruchomienie projektu
-
-Poniższe kroki pozwolą Ci uruchomić lokalnie cały stack aplikacji **Proscientia** na Twoim komputerze.
-
-### 🔹 Krok 1. Klonowanie repozytorium
-
-Upewnij się, że masz zainstalowanego **Git** oraz **Docker Desktop** (lub Docker Engine + Compose).  
-Następnie sklonuj projekt:
+Requirements: Docker with the Compose plugin, and an OpenAI API key for the AI features.
 
 ```bash
 git clone https://github.com/PiotrGren/Proscientia.git
-cd proscientia/docker
-```
-
-### 🔹 Krok 2. Przygotowanie środowiska
-
-Skopiuj plik `.env.example` (jeśli istnieje) lub utwórz `.env` według poniższego wzoru:
-
-```
-# --- DB ---
-DB_NAME=dbname
-DB_USER=dbadmin
-DB_PASSWORD=password
-DB_HOST=db
-DB_PORT=5432
-
-# --- Frontend ---
-VITE_API_URL=http://backend:8000
-
-# --- Backend ---
-SECRET_KEY="change-me"
-DEBUG=1
-ALLOWED_HOSTS=*,localhost,127.0.0.1,backend
-CORS_ALLOWED_ORIGINS=http://localhost:5173
-CSRF_TRUSTED_ORIGINS=http://localhost:5173
-TIME_ZONE=Europe/Warsaw
-MOCK_API_BASE=http://mock-erp-mes:8001
-
-# --- Mock ---
-MOCK_DATA_ROOT=/data
-MOCK_MANIFEST_PATH=/data/manifest.json
-
-# --- Redis / Celery ---
-REDIS_URL=redis://redis:6379/0
-# ROLE=worker  # albo beat
-DJANGO_SETTINGS_MODULE=config.settings.dev
-
-# --- pgAdmin ---
-PGADMIN_DEFAULT_EMAIL=admin@example.com
-PGADMIN_DEFAULT_PASSWORD=password
-```
-
-### 🔹 Krok 3. Budowanie obrazów Dockera
-
-Z poziomu katalogu `docker/` wykonaj:
-
-```bash
-docker compose -f compose.yaml --env-file .env build --no-cache
-```
-
-### 🔹 Krok 4. Uruchomienie stacka
-
-Po zakończonym buildzie uruchom kontenery:
-
-```bash
+cd Proscientia/docker
+cp .env.example .env                       # set SECRET_KEY, DB credentials, OPENAI_API_KEY
+docker compose -f compose.yaml --env-file .env build
 docker compose -f compose.yaml --env-file .env up
 ```
 
-Docker utworzy i uruchomi wszystkie kontenery: **frontend**, **backend**, **mock-erp-mes**, **db**, **pgadmin**.
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API / Django admin | http://localhost:8000/admin |
+| Mock ERP/MES (health) | http://localhost:8001/health |
+| pgAdmin | http://localhost:5050 |
 
-### 🔹 Krok 5. Sprawdzenie działania
+Further documentation (in Polish) is in `docs/`: backend modules, ERP/MES data model, AI agents, and asynchronous agent implementation.
 
-- **Frontend:** [http://localhost:5173](http://localhost:5173)  
-  Zobaczysz placeholderową stronę React z napisem „Proscientia — Frontend działa 🚀”.
-- **Backend:** [http://localhost:8000/admin](http://localhost:8000/admin)  
-  Panel Django (po zalogowaniu superuserem). Na razie czysty szkielet API.
-- **Mock API:** [http://localhost:8001/health](http://localhost:8001/health)  
-  Endpoint zdrowia FastAPI – powinien zwrócić `{"status":"ok"}`.
-- **pgAdmin:** [http://localhost:5050](http://localhost:5050)  
-  Zaloguj się danymi z `.env`, następnie dodaj serwer `db` (host: `db`, port: `5432`).
+## Tech stack
 
-### 🔹 Krok 6. Zatrzymanie kontenerów
+Python · Django REST Framework · Django Channels · Celery · Redis · PostgreSQL · pgvector · OpenAI API · LangChain text splitters · FastAPI · React · TypeScript · Vite · Tailwind CSS · Docker Compose
 
-Aby zatrzymać działające serwisy, naciśnij **Ctrl+C**, a następnie usuń kontenery:
+## Authors
 
-```bash
-docker compose -f compose.yaml down
-```
-
----
-
-> ✅ Po wykonaniu tych kroków masz gotowe środowisko deweloperskie Proscientia — z działającym frontendem, backendem, bazą danych i mock API.  
-> W kolejnym etapie rozwijane będą funkcjonalności Django, React oraz integracje z agentami AI.
+- **Piotr Greń**: project setup and Docker stack, mock ERP/MES service and data, ERP/MES backend integration with Celery synchronisation, authentication and users, base frontend.
+- **Adam Zygmunt**: AI agents (summaries, WebSocket notifications, RAG knowledge agent and chat UI), document datasets.
